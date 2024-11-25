@@ -1,0 +1,86 @@
+networks:
+  telehealth-network:
+    driver: bridge
+
+services:
+  redis:
+    image: redis:7
+    container_name: redis
+    # ports:
+    #   - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - telehealth-network
+
+  db:
+    image: postgres
+    restart: always
+    container_name: telehealth_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_PASSWORD: telehealth_test!!11
+      POSTGRES_DB: telehealth_test
+    # ports:
+    #   - 5432:5432
+    networks:
+      - telehealth-network
+
+  server1:
+    container_name: server1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - /bin/sh
+      - -c
+      - |
+        npx prisma migrate dev
+        npm run start:prod
+    networks:
+      - telehealth-network
+
+  server2:
+    container_name: server2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - /bin/sh
+      - -c
+      - |
+        npx prisma migrate dev
+        npm run start:prod
+    networks:
+      - telehealth-network
+
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    depends_on:
+      - server1
+      - server2
+    ports:
+      - "8080:80"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy/cors.lua:/usr/local/etc/haproxy/cors.lua:ro
+    networks:
+      - telehealth-network

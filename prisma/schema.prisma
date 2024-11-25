@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+  // binaryTargets = ["native", "linux-arm64-openssl-1.1.x"]
+  // binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DB_URL")
+}
+
+enum UserRole {
+  Consult
+  Patient
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  displayName String    @db.VarChar(100)
+  username    String    @unique @db.VarChar(100)
+  password    String    @db.VarChar(255)
+  role        UserRole
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  room          Room?           @relation(fields: [roomId], references: [id])
+  roomId        Int?
+  ChatEventLogs ChatEventLogs[]
+}
+
+model Room {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(100)
+
+  users         User[]
+  messages      Message[]
+  ChatEventLogs ChatEventLogs[]
+}
+
+model Message {
+  id      Int    @id @default(autoincrement())
+  content String @db.VarChar(255)
+
+  senderId Int
+  room     Room @relation(fields: [roomId], references: [id])
+  roomId   Int
+}
+
+enum ChatEventType {
+  JoinRoom
+  LeaveRoom
+  Message
+}
+
+enum ChatEventStatus {
+  Success
+  Fail
+}
+
+model ChatEventLogs {
+  id Int @id @default(autoincrement())
+
+  room    Room? @relation(fields: [roomId], references: [id])
+  roomId  Int?
+  user    User  @relation(fields: [actorId], references: [id])
+  actorId Int
+
+  eventType       ChatEventType
+  eventTypeStatus ChatEventStatus
+}
